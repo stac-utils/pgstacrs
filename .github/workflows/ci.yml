@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install postgis
+        run: sudo apt-get install postgis
+      - name: Sync dev
+        run: uv sync --only-dev
+      - name: Lint
+        run: scripts/lint
+      - name: Test
+        run: scripts/test

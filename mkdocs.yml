@@ -1,0 +1,24 @@
+site_name: pgstacrs
+site_url: https://github.com/stac-utils/pgstacrs
+theme:
+  name: material
+
+nav:
+  - index.md
+  - api.md
+
+plugins:
+  - search
+  - social
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            allow_inspection: false
+            docstring_section_style: list
+            docstring_style: google
+            members_order: source
+            separate_signature: true
+            show_root_heading: true
+            show_signature_annotations: true
+            show_source: false
