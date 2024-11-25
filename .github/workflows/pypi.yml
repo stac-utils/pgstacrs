@@ -1,13 +1,9 @@
-name: CI
+name: PyPI
 
 on:
   push:
-    branches:
-      - main
-      - master
     tags:
-      - "*"
-  pull_request:
+      - "v*"
   workflow_dispatch:
 
 permissions:

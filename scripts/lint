@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+set -e
+
+cargo fmt --check
+ruff check
+ruff format --check

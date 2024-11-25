@@ -15,6 +15,9 @@ dev = [
     "pytest-postgresql>=6.1.1",
     "pypgstac>=0.9.1",
     "psycopg[pool]>=3.2.3",
+    "mkdocs-material[imaging]>=9.5.46",
+    "mkdocstrings[python]>=0.26.1",
+    "ruff>=0.8.0",
 ]
 
 [tool.pytest.ini_options]

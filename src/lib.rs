@@ -76,9 +76,6 @@ enum Error {
     RunError(#[from] RunError<tokio_postgres::Error>),
 
     #[error(transparent)]
-    Pgstac(#[from] pgstac::Error),
-
-    #[error(transparent)]
     TokioPostgres(#[from] tokio_postgres::Error),
 }
 
@@ -88,14 +85,14 @@ impl From<Error> for PyErr {
     fn from(value: Error) -> Self {
         match value {
             Error::RunError(err) => PgstacError::new_err(err.to_string()),
-            Error::Pgstac(err) => PgstacError::new_err(err.to_string()),
             Error::TokioPostgres(err) => PyIOError::new_err(format!("tokio postgres: {err}")),
         }
     }
 }
 
 #[pymodule]
-fn pgstacrs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn pgstacrs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Client>()?;
+    m.add("PgstacError", py.get_type::<PgstacError>())?;
     Ok(())
 }
