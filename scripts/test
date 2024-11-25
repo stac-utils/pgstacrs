@@ -2,4 +2,4 @@
 
 set -e
 
-maturin dev --uv && pytest
+uv run maturin dev --uv && uv run pytest
