@@ -8,8 +8,8 @@ name = "pgstacrs"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.23.0"
-tokio-postgres = "0.7.12"
+pyo3 = "0.23.2"
+tokio-postgres = { version = "0.7.12", features = ["with-serde_json-1"] }
 pyo3-async-runtimes = { version = "0.23.0", features = [
     "tokio",
     "tokio-runtime",
@@ -18,3 +18,5 @@ tokio = "1.41.1"
 thiserror = "2.0.3"
 bb8 = "0.8.6"
 bb8-postgres = "0.8.1"
+serde_json = "1.0.133"
+pythonize = "0.23.0"

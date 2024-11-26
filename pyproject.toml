@@ -29,6 +29,14 @@ filterwarnings = [
     "ignore:the default for the ConnectionPool:DeprecationWarning",
 ]
 
+[tool.uv]
+# https://github.com/PyO3/maturin/issues/2314#issuecomment-2488542771
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "src/*.rs" },
+]
+
 [build-system]
 requires = ["maturin>=1.7,<2.0"]
 build-backend = "maturin"
