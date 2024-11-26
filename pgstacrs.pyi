@@ -66,5 +66,12 @@ class Client:
             id: The collection id
         """
 
+    async def all_collections(self) -> None:
+        """Returns all collections.
+
+        Returns:
+            All collections in the database
+        """
+
 class PgstacError:
     """An exception returned from pgstac"""
