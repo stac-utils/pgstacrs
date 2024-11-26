@@ -27,6 +27,17 @@ macro_rules! pgstac {
         })
     };
 
+    (json $client:expr,$py:expr,$function:expr) => {
+        let function = $function.to_string();
+        $client.run($py, |pool: PgstacPool| async move {
+            let query = format!("SELECT * FROM pgstac.{}()", function);
+            let connection = pool.get().await?;
+            let row = connection.query_one(&query, &[]).await?;
+            let value: Value = row.try_get(function.as_str())?;
+            Ok(Json(value))
+        })
+    };
+
     (option $client:expr,$py:expr,$function:expr,$params:expr) => {
         let function = $function.to_string();
         $client.run($py, |pool: PgstacPool| async move {
@@ -137,6 +148,12 @@ impl Client {
     fn delete_collection<'a>(&self, py: Python<'a>, id: String) -> PyResult<Bound<'a, PyAny>> {
         pgstac! {
             void self,py,"delete_collection",[&id]
+        }
+    }
+
+    fn all_collections<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+        pgstac! {
+            json self,py,"all_collections"
         }
     }
 }
