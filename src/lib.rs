@@ -2,10 +2,11 @@ use bb8::{Pool, RunError};
 use bb8_postgres::PostgresConnectionManager;
 use pyo3::{
     create_exception,
-    exceptions::{PyException, PyIOError},
+    exceptions::PyException,
     prelude::*,
-    types::PyType,
+    types::{PyDict, PyType},
 };
+use serde_json::Value;
 use std::future::Future;
 use thiserror::Error;
 use tokio_postgres::NoTls;
@@ -14,8 +15,63 @@ create_exception!(pgstacrs, PgstacError, PyException);
 
 type PgstacPool = Pool<PostgresConnectionManager<NoTls>>;
 
+macro_rules! pgstac {
+    (string $client:expr,$py:expr,$function:expr) => {
+        let function = $function.to_string();
+        $client.run($py, |pool: PgstacPool| async move {
+            let connection = pool.get().await?;
+            let query = format!("SELECT * FROM pgstac.{}()", function);
+            let row = connection.query_one(&query, &[]).await?;
+            let value: String = row.try_get(function.as_str())?;
+            Ok(value)
+        })
+    };
+
+    (option $client:expr,$py:expr,$function:expr,$params:expr) => {
+        let function = $function.to_string();
+        $client.run($py, |pool: PgstacPool| async move {
+            let param_string = (0..$params.len())
+                .map(|i| format!("${}", i + 1))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let query = format!("SELECT * FROM pgstac.{}({})", function, param_string);
+            let connection = pool.get().await?;
+            let row = connection.query_one(&query, &$params).await?;
+            let value: Option<Value> = row.try_get(function.as_str())?;
+            Ok(value.map(Json))
+        })
+    };
+
+    (void $client:expr,$py:expr,$function:expr,$params:expr) => {
+        let function = $function.to_string();
+        $client.run($py, |pool: PgstacPool| async move {
+            let param_string = (0..$params.len())
+                .map(|i| format!("${}", i + 1))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let query = format!("SELECT * FROM pgstac.{}({})", function, param_string);
+            let connection = pool.get().await?;
+            let _ = connection.query_one(&query, &$params).await?;
+            Ok(())
+        })
+    };
+}
+
+#[derive(Debug, Error)]
+enum Error {
+    #[error(transparent)]
+    RunError(#[from] RunError<tokio_postgres::Error>),
+
+    #[error(transparent)]
+    TokioPostgres(#[from] tokio_postgres::Error),
+}
+
+type Result<T> = std::result::Result<T, Error>;
+
 #[pyclass]
 struct Client(PgstacPool);
+
+struct Json(Value);
 
 #[pymethods]
 impl Client {
@@ -34,25 +90,58 @@ impl Client {
     }
 
     fn get_version<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-        self.string(py, "get_version")
+        pgstac! {
+            string self,py,"get_version"
+        }
+    }
+
+    fn get_collection<'a>(&self, py: Python<'a>, id: String) -> PyResult<Bound<'a, PyAny>> {
+        pgstac! {
+            option self,py,"get_collection",[&id]
+        }
+    }
+
+    fn create_collection<'a>(
+        &self,
+        py: Python<'a>,
+        collection: Bound<'a, PyDict>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        let collection: Value = pythonize::depythonize(&collection)?;
+        pgstac! {
+            void self,py,"create_collection",[&collection]
+        }
+    }
+
+    fn update_collection<'a>(
+        &self,
+        py: Python<'a>,
+        collection: Bound<'a, PyDict>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        let collection: Value = pythonize::depythonize(&collection)?;
+        pgstac! {
+            void self,py,"update_collection",[&collection]
+        }
+    }
+
+    fn upsert_collection<'a>(
+        &self,
+        py: Python<'a>,
+        collection: Bound<'a, PyDict>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        let collection: Value = pythonize::depythonize(&collection)?;
+        pgstac! {
+            void self,py,"upsert_collection",[&collection]
+        }
+    }
+
+    fn delete_collection<'a>(&self, py: Python<'a>, id: String) -> PyResult<Bound<'a, PyAny>> {
+        pgstac! {
+            void self,py,"delete_collection",[&id]
+        }
     }
 }
 
 impl Client {
-    fn string<'a, 'b>(&self, py: Python<'a>, function: &'static str) -> PyResult<Bound<'a, PyAny>>
-    where
-        'a: 'b,
-    {
-        let function = function.to_string();
-        self.run(py, |pool: PgstacPool| async move {
-            let connection = pool.get().await?;
-            let query = format!("SELECT * FROM pgstac.{}()", function);
-            let row = connection.query_one(&query, &[]).await?;
-            let value: String = row.try_get(function.as_str())?;
-            Ok(value)
-        })
-    }
-
     fn run<'a, F, T>(
         &self,
         py: Python<'a>,
@@ -70,22 +159,20 @@ impl Client {
     }
 }
 
-#[derive(Debug, Error)]
-enum Error {
-    #[error(transparent)]
-    RunError(#[from] RunError<tokio_postgres::Error>),
-
-    #[error(transparent)]
-    TokioPostgres(#[from] tokio_postgres::Error),
+impl<'py> IntoPyObject<'py> for Json {
+    type Error = pythonize::PythonizeError;
+    type Output = Bound<'py, PyAny>;
+    type Target = PyAny;
+    fn into_pyobject(self, py: Python<'py>) -> std::result::Result<Self::Output, Self::Error> {
+        pythonize::pythonize(py, &self.0)
+    }
 }
-
-type Result<T> = std::result::Result<T, Error>;
 
 impl From<Error> for PyErr {
     fn from(value: Error) -> Self {
         match value {
             Error::RunError(err) => PgstacError::new_err(err.to_string()),
-            Error::TokioPostgres(err) => PyIOError::new_err(format!("tokio postgres: {err}")),
+            Error::TokioPostgres(err) => PgstacError::new_err(format!("postgres: {err}")),
         }
     }
 }

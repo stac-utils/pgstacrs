@@ -1,4 +1,6 @@
-from typing import AsyncIterator
+import json
+from pathlib import Path
+from typing import Any, AsyncIterator
 
 import pytest
 from pgstacrs import Client
@@ -23,3 +25,14 @@ async def client(pgstac: PostgreSQLExecutor) -> AsyncIterator[Client]:
         yield await Client.open(
             f"user={database_janitor.user} host={database_janitor.host} port={database_janitor.port} dbname={database_janitor.dbname} password={database_janitor.password}"
         )
+
+
+@pytest.fixture
+def collection(examples_path: Path) -> dict[str, Any]:
+    with open(examples_path / "collection.json") as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def examples_path() -> Path:
+    return Path(__file__).parents[1] / "spec-examples" / "v1.0.0"

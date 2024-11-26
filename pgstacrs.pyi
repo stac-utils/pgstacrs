@@ -1,3 +1,5 @@
+from typing import Any
+
 class Client:
     """A pgstac client."""
 
@@ -18,6 +20,50 @@ class Client:
 
         Returns:
             The pgstac version as a string
+        """
+
+    async def get_collection(self, id: str) -> str | None:
+        """Returns a collection by id, or none if one does not exist.
+
+        Args:
+            id: The collection id
+
+        Returns:
+            A STAC collection, or None
+        """
+
+    async def create_collection(self, collection: dict[str, Any]) -> None:
+        """Creates a new collection.
+
+        Args:
+            collection: The collection
+
+        Raises:
+            PgstacError: If the collection already exists.
+        """
+
+    async def update_collection(self, collection: dict[str, Any]) -> None:
+        """Updates a collection.
+
+        Args:
+            collection: The collection
+
+        Raises:
+            PgstacError: If the collection does not exist.
+        """
+
+    async def upsert_collection(self, collection: dict[str, Any]) -> None:
+        """Upserts a collection.
+
+        Args:
+            collection: The collection
+        """
+
+    async def delete_collection(self, id: str) -> None:
+        """Deletes a collection by id.
+
+        Args:
+            id: The collection id
         """
 
 class PgstacError:
