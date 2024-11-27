@@ -3,7 +3,11 @@
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/stac-utils/pgstacrs/ci.yml?style=for-the-badge)](https://github.com/stac-utils/pgstacrs/actions/workflows/ci.yml)
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/stac-utils/pgstacrs/docs.yml?style=for-the-badge&label=docs)](https://stac-utils.github.io/pgstacrs)
 
-Python async API for pgstac, backed by Rust.
+Python async API for [pgstac](https://github.com/stac-utils/pgstac), backed by Rust.
+**pgstacrs** is tested against the following **pgstac** versions:
+
+- [0.9.1](https://github.com/stac-utils/pgstac/releases/tag/v0.9.1)
+- [0.8.5](https://github.com/stac-utils/pgstac/releases/tag/v0.8.5)
 
 ## Usage
 
