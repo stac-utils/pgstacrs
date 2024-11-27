@@ -15,6 +15,12 @@ class Client:
             A pgstac client
         """
 
+    async def print_config(self) -> None:
+        """Prints the postgresql configuration.
+
+        Redacts the password
+        """
+
     async def get_version(self) -> str:
         """Returns the pgstac version.
 
@@ -71,6 +77,79 @@ class Client:
 
         Returns:
             All collections in the database
+        """
+
+    async def get_item(self, id: str, collection_id: str | None = None) -> None:
+        """Returns an item by id.
+
+        Args:
+            id: The item id
+            collection_id: The optional collection id
+
+        Returns:
+            The item, or None if the item does not exist
+        """
+
+    async def create_item(self, item: dict[str, Any]) -> None:
+        """Creates an item.
+
+        Args:
+            item: The item
+
+        Raises:
+            PgstacError: If the item's collection does not exist. The collection
+                is determined by the `collection` attribute of the item.
+        """
+
+    async def create_items(self, items: list[dict[str, Any]]) -> None:
+        """Creates many items.
+
+        Args:
+            items: The items
+
+        Raises:
+            PgstacError: If the items' collection(s) does not exist.
+        """
+
+    async def update_item(self, item: dict[str, Any]) -> None:
+        """Updates an item.
+
+        Args:
+            item: The item
+
+        Raises:
+            PgstacError: If the item does not exist
+        """
+
+    async def upsert_item(self, item: dict[str, Any]) -> None:
+        """Upserts an item.
+
+        Args:
+            item: The item
+
+        Raises:
+            PgstacError: If the item's collection does not exist.
+        """
+
+    async def upsert_items(self, items: list[dict[str, Any]]) -> None:
+        """Upserts many items.
+
+        Args:
+            items: The items
+
+        Raises:
+            PgstacError: If the items' collection(s) does not exist.
+        """
+
+    async def delete_item(self, id: str, collection_id: str | None = None) -> None:
+        """Deletes an item by id.
+
+        Args:
+            id: The item id
+            collection_id: The optional collection id
+
+        Raises:
+            PgstacError: If the item cannot be found
         """
 
 class PgstacError:

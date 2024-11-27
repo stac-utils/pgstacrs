@@ -1,0 +1,12 @@
+services:
+  database:
+    image: ghcr.io/stac-utils/pgstac:v0.9.1
+    environment:
+      - POSTGRES_USER=username
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=pgstac
+      - PGUSER=username
+      - PGPASSWORD=password
+      - PGDATABASE=pgstac
+    ports:
+      - "5432:5432"

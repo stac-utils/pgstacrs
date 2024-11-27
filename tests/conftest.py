@@ -4,6 +4,7 @@ from typing import Any, AsyncIterator
 
 import pytest
 from pgstacrs import Client
+from pytest import Config, Parser
 from pytest_postgresql import factories
 from pytest_postgresql.executor import PostgreSQLExecutor
 from pytest_postgresql.janitor import DatabaseJanitor
@@ -34,5 +35,29 @@ def collection(examples_path: Path) -> dict[str, Any]:
 
 
 @pytest.fixture
+def item(examples_path: Path) -> dict[str, Any]:
+    with open(examples_path / "simple-item.json") as f:
+        return json.load(f)
+
+
+@pytest.fixture
 def examples_path() -> Path:
     return Path(__file__).parents[1] / "spec-examples" / "v1.0.0"
+
+
+def pytest_addoption(parser: Parser):
+    parser.addoption(
+        "--external",
+        action="store_true",
+        default=False,
+        help="run tests that require an external database via docker compose",
+    )
+
+
+def pytest_collection_modifyitems(config: Config, items: Any) -> None:
+    if config.getoption("--external"):
+        return
+    skip_external = pytest.mark.skip(reason="need --external option to run")
+    for item in items:
+        if "external" in item.keywords:
+            item.add_marker(skip_external)
