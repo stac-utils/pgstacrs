@@ -1,7 +1,53 @@
 site_name: pgstacrs
-site_url: https://github.com/stac-utils/pgstacrs
+site_url: https://stac-utils.github.io/pgstacrs/
+site_description: Python async API for pgstac, backed by Rust.
+site_author: Pete Gadomski <pete.gadomski@gmail.com>
+repo_url: https://github.com/stac-utils/pgstacrs
+
 theme:
   name: material
+  logo: pgstac.png
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      primary: default
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: default
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  font:
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - content.code.annotate
+    - content.code.copy
+    - navigation.indexes
+    - navigation.instant
+    - navigation.tracking
+    - search.suggest
+    - search.share
+
+extra_css:
+  - overrides/stylesheets/extra.css
+
+extra:
+  social:
+    - icon: "fontawesome/brands/github"
+      link: "https://github.com/developmentseed"
+    - icon: "fontawesome/brands/linkedin"
+      link: "https://www.linkedin.com/company/development-seed"
+  version:
+    provider: mike
 
 nav:
   - index.md
@@ -10,6 +56,7 @@ nav:
 plugins:
   - search
   - social
+  - mike
   - mkdocstrings:
       handlers:
         python:
@@ -22,3 +69,33 @@ plugins:
             show_root_heading: true
             show_signature_annotations: true
             show_source: false
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - codehilite:
+      guess_lang: false
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.arithmatex
+  - pymdownx.betterem
+  - pymdownx.caret:
+      insert: false
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.escapeall:
+      hardbreak: true
+      nbsp: true
+  - pymdownx.magiclink:
+      hide_protocol: true
+      repo_url_shortener: true
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - toc:
+      permalink: true

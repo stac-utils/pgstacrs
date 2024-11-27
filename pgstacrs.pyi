@@ -16,9 +16,50 @@ class Client:
 
         Examples:
             >>> from pgstacrs import Client
-            >>> await Client.open("postgresql://username:password@localhost:5432/pgstac")
+            >>> client = await Client.open("postgresql://username:password@localhost:5432/pgstac")
+            >>> client = await Client.open("user=username password=password dbname=pgstac")
         """
 
+    async def search(
+        self,
+        *,
+        intersects: str | dict[str, Any] | None = None,
+        ids: str | list[str] | None = None,
+        collections: str | list[str] | None = None,
+        limit: int | None = None,
+        bbox: list[float] | None = None,
+        datetime: str | None = None,
+        include: str | list[str] | None = None,
+        exclude: str | list[str] | None = None,
+        sortby: str | list[str] | None = None,
+        filter: str | dict[str, Any] | None = None,
+        query: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Searches the database with STAC API item search.
+
+        Args:
+            collections: Array of one or more Collection IDs that
+                each matching Item must be in.
+            ids: Array of Item ids to return.
+            intersects: Searches items by performing intersection between their
+                geometry and provided GeoJSON geometry.
+            bbox: Requested bounding box.
+            datetime: Single date+time, or a range (`/` separator), formatted to
+                RFC 3339, section 5.6.  Use double dots .. for open date ranges.
+            include: Fields to include in the response (see [the extension
+                docs](https://github.com/stac-api-extensions/fields?tab=readme-ov-file#includeexclude-semantics))
+                for more on the semantics).
+            exclude: Fields to exclude from the response (see [the extension
+                docs](https://github.com/stac-api-extensions/fields?tab=readme-ov-file#includeexclude-semantics))
+                for more on the semantics).
+            sortby: Fields by which to sort results (use `-field` to sort descending).
+            filter: CQL2 filter expression. Strings will be interpreted as
+                cql2-text, dictionaries as cql2-json.
+            query: Additional filtering based on properties.
+                It is recommended to use filter instead, if possible.
+            limit: The page size returned from the server.
+        """
     async def print_config(self) -> None:
         """Prints the postgresql configuration.
 
@@ -156,47 +197,6 @@ class Client:
 
         Raises:
             PgstacError: If the item cannot be found
-        """
-
-    async def search(
-        self,
-        *,
-        intersects: str | dict[str, Any] | None = None,
-        ids: str | list[str] | None = None,
-        collections: str | list[str] | None = None,
-        limit: int | None = None,
-        bbox: list[float] | None = None,
-        datetime: str | None = None,
-        include: str | list[str] | None = None,
-        exclude: str | list[str] | None = None,
-        sortby: str | list[str] | None = None,
-        filter: str | dict[str, Any] | None = None,
-        query: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """
-        Searches the database with STAC API item search.
-
-        Args:
-            collections: Array of one or more Collection IDs that
-                each matching Item must be in.
-            ids: Array of Item ids to return.
-            intersects: Searches items by performing intersection between their
-                geometry and provided GeoJSON geometry.
-            bbox: Requested bounding box.
-            datetime: Single date+time, or a range (`/` separator), formatted to
-                RFC 3339, section 5.6.  Use double dots .. for open date ranges.
-            include: Fields to include in the response (see [the extension
-                docs](https://github.com/stac-api-extensions/fields?tab=readme-ov-file#includeexclude-semantics))
-                for more on the semantics).
-            exclude: Fields to exclude from the response (see [the extension
-                docs](https://github.com/stac-api-extensions/fields?tab=readme-ov-file#includeexclude-semantics))
-                for more on the semantics).
-            sortby: Fields by which to sort results (use `-field` to sort descending).
-            filter: CQL2 filter expression. Strings will be interpreted as
-                cql2-text, dictionaries as cql2-json.
-            query: Additional filtering based on properties.
-                It is recommended to use filter instead, if possible.
-            limit: The page size returned from the server.
         """
 
 class PgstacError:
