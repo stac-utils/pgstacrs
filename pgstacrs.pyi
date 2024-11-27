@@ -13,6 +13,10 @@ class Client:
 
         Returns:
             A pgstac client
+
+        Examples:
+            >>> from pgstacrs import Client
+            >>> await Client.open("postgresql://username:password@localhost:5432/pgstac")
         """
 
     async def print_config(self) -> None:
