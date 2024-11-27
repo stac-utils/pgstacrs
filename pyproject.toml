@@ -1,12 +1,21 @@
 [project]
 name = "pgstacrs"
+description = "Python async API for pgstac, backed by Rust"
+readme = "README.md"
 requires-python = ">=3.8"
+authors = [{ name = "Pete Gadomski", email = "pete.gadomski@gmail.com" }]
+keywords = ["stac", "geospatial", "postgres", "pgstac"]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
+
+[project.urls]
+Github = "https://github.com/stac-utils/pgstacrs"
+Docs = "https://stac-utils.github.io/pgstacrs/"
+Issues = "https://github.com/stac-utils/pgstacrs/issues"
 
 [dependency-groups]
 dev = [
