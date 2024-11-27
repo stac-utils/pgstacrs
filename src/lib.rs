@@ -2,14 +2,14 @@ use bb8::{Pool, RunError};
 use bb8_postgres::PostgresConnectionManager;
 use pyo3::{
     create_exception,
-    exceptions::PyException,
+    exceptions::{PyException, PyValueError},
     prelude::*,
-    types::{PyDict, PyType},
+    types::{PyDict, PyList, PyType},
 };
 use serde_json::Value;
-use std::future::Future;
+use std::{future::Future, str::FromStr};
 use thiserror::Error;
-use tokio_postgres::NoTls;
+use tokio_postgres::{Config, NoTls};
 
 create_exception!(pgstacrs, PgstacError, PyException);
 
@@ -20,7 +20,7 @@ macro_rules! pgstac {
         let function = $function.to_string();
         $client.run($py, |pool: PgstacPool| async move {
             let connection = pool.get().await?;
-            let query = format!("SELECT * FROM pgstac.{}()", function);
+            let query = format!("SELECT pgstac.{}()", function);
             let row = connection.query_one(&query, &[]).await?;
             let value: String = row.try_get(function.as_str())?;
             Ok(value)
@@ -30,7 +30,7 @@ macro_rules! pgstac {
     (json $client:expr,$py:expr,$function:expr) => {
         let function = $function.to_string();
         $client.run($py, |pool: PgstacPool| async move {
-            let query = format!("SELECT * FROM pgstac.{}()", function);
+            let query = format!("SELECT pgstac.{}()", function);
             let connection = pool.get().await?;
             let row = connection.query_one(&query, &[]).await?;
             let value: Value = row.try_get(function.as_str())?;
@@ -45,7 +45,7 @@ macro_rules! pgstac {
                 .map(|i| format!("${}", i + 1))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let query = format!("SELECT * FROM pgstac.{}({})", function, param_string);
+            let query = format!("SELECT pgstac.{}({})", function, param_string);
             let connection = pool.get().await?;
             let row = connection.query_one(&query, &$params).await?;
             let value: Option<Value> = row.try_get(function.as_str())?;
@@ -60,7 +60,7 @@ macro_rules! pgstac {
                 .map(|i| format!("${}", i + 1))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let query = format!("SELECT * FROM pgstac.{}({})", function, param_string);
+            let query = format!("SELECT pgstac.{}({})", function, param_string);
             let connection = pool.get().await?;
             let _ = connection.query_one(&query, &$params).await?;
             Ok(())
@@ -80,7 +80,10 @@ enum Error {
 type Result<T> = std::result::Result<T, Error>;
 
 #[pyclass]
-struct Client(PgstacPool);
+struct Client {
+    pool: PgstacPool,
+    config: Config,
+}
 
 struct Json(Value);
 
@@ -92,12 +95,25 @@ impl Client {
         py: Python<'a>,
         params: String,
     ) -> PyResult<Bound<'a, PyAny>> {
-        let manager =
-            PostgresConnectionManager::new_from_stringlike(params, NoTls).map_err(Error::from)?; // TODO enable tls
+        let config: Config = params
+            .parse()
+            .map_err(|err: <Config as FromStr>::Err| PyValueError::new_err(err.to_string()))?;
+        let manager = PostgresConnectionManager::new(config.clone(), NoTls);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let pool = Pool::builder().build(manager).await.map_err(Error::from)?; // TODO allow configuration
-            Ok(Client(pool))
+            {
+                let connection = pool.get().await.map_err(Error::from)?;
+                connection
+                    .execute("SET search_path = pgstac, public", &[])
+                    .await
+                    .map_err(Error::from)?;
+            }
+            Ok(Client { pool, config })
         })
+    }
+
+    fn print_config(&self) {
+        println!("{:?}", self.config);
     }
 
     fn get_version<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
@@ -156,6 +172,85 @@ impl Client {
             json self,py,"all_collections"
         }
     }
+
+    #[pyo3(signature = (id, collection_id=None))]
+    fn get_item<'a>(
+        &self,
+        py: Python<'a>,
+        id: String,
+        collection_id: Option<String>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        pgstac! {
+            option self,py,"get_item",[&Some(id.as_str()), &collection_id.as_deref()]
+        }
+    }
+
+    fn create_item<'a>(
+        &self,
+        py: Python<'a>,
+        item: Bound<'a, PyDict>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        let item: Value = pythonize::depythonize(&item)?;
+        pgstac! {
+            void self,py,"create_item",[&item]
+        }
+    }
+
+    fn create_items<'a>(
+        &self,
+        py: Python<'a>,
+        items: Bound<'a, PyList>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        let items: Value = pythonize::depythonize(&items)?;
+        pgstac! {
+            void self,py,"create_items",[&items]
+        }
+    }
+
+    fn update_item<'a>(
+        &self,
+        py: Python<'a>,
+        item: Bound<'a, PyDict>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        let item: Value = pythonize::depythonize(&item)?;
+        pgstac! {
+            void self,py,"update_item",[&item]
+        }
+    }
+
+    fn upsert_item<'a>(
+        &self,
+        py: Python<'a>,
+        item: Bound<'a, PyDict>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        let item: Value = pythonize::depythonize(&item)?;
+        pgstac! {
+            void self,py,"upsert_item",[&item]
+        }
+    }
+
+    fn upsert_items<'a>(
+        &self,
+        py: Python<'a>,
+        items: Bound<'a, PyList>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        let items: Value = pythonize::depythonize(&items)?;
+        pgstac! {
+            void self,py,"upsert_items",[&items]
+        }
+    }
+
+    #[pyo3(signature = (id, collection_id=None))]
+    fn delete_item<'a>(
+        &self,
+        py: Python<'a>,
+        id: String,
+        collection_id: Option<String>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        pgstac! {
+            void self,py,"delete_item",[&Some(id.as_str()), &collection_id.as_deref()]
+        }
+    }
 }
 
 impl Client {
@@ -168,7 +263,7 @@ impl Client {
         F: Future<Output = Result<T>> + Send,
         T: for<'py> IntoPyObject<'py>,
     {
-        let pool = self.0.clone();
+        let pool = self.pool.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let value = f(pool).await?;
             Ok(value)

@@ -19,7 +19,13 @@ dev = [
     "mkdocstrings[python]>=0.26.1",
     "ruff>=0.8.0",
     "maturin>=1.7.4",
+    "mkdocs-jupyter>=0.24.8",
+    "mypy>=1.13.0",
 ]
+
+[tool.mypy]
+strict = true
+files = "tests/**/*.py"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -28,6 +34,7 @@ filterwarnings = [
     "error",
     "ignore:the default for the ConnectionPool:DeprecationWarning",
 ]
+markers = ["external: requires an external database via docker compose"]
 
 [tool.uv]
 # https://github.com/PyO3/maturin/issues/2314#issuecomment-2488542771
