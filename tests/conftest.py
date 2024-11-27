@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, cast
 
 import pytest
 from pgstacrs import Client
@@ -31,13 +31,13 @@ async def client(pgstac: PostgreSQLExecutor) -> AsyncIterator[Client]:
 @pytest.fixture
 def collection(examples_path: Path) -> dict[str, Any]:
     with open(examples_path / "collection.json") as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 @pytest.fixture
 def item(examples_path: Path) -> dict[str, Any]:
     with open(examples_path / "simple-item.json") as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def examples_path() -> Path:
     return Path(__file__).parents[1] / "spec-examples" / "v1.0.0"
 
 
-def pytest_addoption(parser: Parser):
+def pytest_addoption(parser: Parser) -> None:
     parser.addoption(
         "--external",
         action="store_true",

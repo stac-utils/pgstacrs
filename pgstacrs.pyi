@@ -28,7 +28,7 @@ class Client:
             The pgstac version as a string
         """
 
-    async def get_collection(self, id: str) -> str | None:
+    async def get_collection(self, id: str) -> dict[str, Any] | None:
         """Returns a collection by id, or none if one does not exist.
 
         Args:
@@ -72,14 +72,16 @@ class Client:
             id: The collection id
         """
 
-    async def all_collections(self) -> None:
+    async def all_collections(self) -> list[dict[str, Any]]:
         """Returns all collections.
 
         Returns:
             All collections in the database
         """
 
-    async def get_item(self, id: str, collection_id: str | None = None) -> None:
+    async def get_item(
+        self, id: str, collection_id: str | None = None
+    ) -> dict[str, Any] | None:
         """Returns an item by id.
 
         Args:
