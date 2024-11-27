@@ -1,5 +1,6 @@
 use bb8::{Pool, RunError};
 use bb8_postgres::PostgresConnectionManager;
+use geojson::Geometry;
 use pyo3::{
     create_exception,
     exceptions::{PyException, PyValueError},
@@ -7,13 +8,28 @@ use pyo3::{
     types::{PyDict, PyList, PyType},
 };
 use serde_json::Value;
+use stac::Bbox;
+use stac_api::{Fields, Filter, Items, Search, Sortby};
 use std::{future::Future, str::FromStr};
 use thiserror::Error;
-use tokio_postgres::{Config, NoTls};
+use tokio_postgres::{types::ToSql, Config, NoTls};
 
 create_exception!(pgstacrs, PgstacError, PyException);
+create_exception!(pgstacrs, StacError, PyException);
 
 type PgstacPool = Pool<PostgresConnectionManager<NoTls>>;
+
+#[derive(FromPyObject)]
+pub enum StringOrDict {
+    String(String),
+    Dict(Py<PyDict>),
+}
+
+#[derive(FromPyObject)]
+pub enum StringOrList {
+    String(String),
+    List(Vec<String>),
+}
 
 macro_rules! pgstac {
     (string $client:expr,$py:expr,$function:expr) => {
@@ -27,12 +43,16 @@ macro_rules! pgstac {
         })
     };
 
-    (json $client:expr,$py:expr,$function:expr) => {
+    (json $client:expr,$py:expr,$function:expr,$params:expr) => {
         let function = $function.to_string();
         $client.run($py, |pool: PgstacPool| async move {
-            let query = format!("SELECT pgstac.{}()", function);
+            let param_string = (0..$params.len())
+                .map(|i| format!("${}", i + 1))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let query = format!("SELECT pgstac.{}({})", function, param_string);
             let connection = pool.get().await?;
-            let row = connection.query_one(&query, &[]).await?;
+            let row = connection.query_one(&query, &$params).await?;
             let value: Value = row.try_get(function.as_str())?;
             Ok(Json(value))
         })
@@ -71,7 +91,22 @@ macro_rules! pgstac {
 #[derive(Debug, Error)]
 enum Error {
     #[error(transparent)]
-    RunError(#[from] RunError<tokio_postgres::Error>),
+    Geojson(#[from] geojson::Error),
+
+    #[error(transparent)]
+    Run(#[from] RunError<tokio_postgres::Error>),
+
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    Stac(#[from] stac::Error),
+
+    #[error(transparent)]
+    StacApi(#[from] stac_api::Error),
+
+    #[error(transparent)]
+    Pythonize(#[from] pythonize::PythonizeError),
 
     #[error(transparent)]
     TokioPostgres(#[from] tokio_postgres::Error),
@@ -169,7 +204,7 @@ impl Client {
 
     fn all_collections<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         pgstac! {
-            json self,py,"all_collections"
+            json self,py,"all_collections",[] as [&(dyn ToSql + Sync); 0]
         }
     }
 
@@ -251,6 +286,93 @@ impl Client {
             void self,py,"delete_item",[&Some(id.as_str()), &collection_id.as_deref()]
         }
     }
+
+    #[pyo3(signature = (*, collections=None, ids=None, intersects=None, bbox=None, datetime=None, include=None, exclude=None, sortby=None, filter=None, query=None, limit=None))]
+    fn search<'a>(
+        &self,
+        py: Python<'a>,
+        collections: Option<StringOrList>,
+        ids: Option<StringOrList>,
+        intersects: Option<StringOrDict>,
+        bbox: Option<Vec<f64>>,
+        datetime: Option<String>,
+        include: Option<StringOrList>,
+        exclude: Option<StringOrList>,
+        sortby: Option<StringOrList>,
+        filter: Option<StringOrDict>,
+        query: Option<Bound<'a, PyDict>>,
+        limit: Option<u64>,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        // TODO refactor to use https://github.com/gadomski/stacrs/blob/1528d7e1b7185a86efe9fc7c42b0620093c5e9c6/src/search.rs#L128-L162
+        let mut fields = Fields::default();
+        if let Some(include) = include {
+            fields.include = include.into();
+        }
+        if let Some(exclude) = exclude {
+            fields.exclude = exclude.into();
+        }
+        let fields = if fields.include.is_empty() && fields.exclude.is_empty() {
+            None
+        } else {
+            Some(fields)
+        };
+        let query = query
+            .map(|query| pythonize::depythonize(&query))
+            .transpose()?;
+        let bbox = bbox
+            .map(|bbox| Bbox::try_from(bbox))
+            .transpose()
+            .map_err(Error::from)?;
+        let sortby = sortby.map(|sortby| {
+            Vec::<String>::from(sortby)
+                .into_iter()
+                .map(|s| s.parse::<Sortby>().unwrap()) // the parse is infallible
+                .collect::<Vec<_>>()
+        });
+        let filter = filter
+            .map(|filter| match filter {
+                StringOrDict::Dict(cql_json) => {
+                    pythonize::depythonize(&cql_json.bind_borrowed(py)).map(Filter::Cql2Json)
+                }
+                StringOrDict::String(cql2_text) => Ok(Filter::Cql2Text(cql2_text)),
+            })
+            .transpose()?;
+        let filter = filter
+            .map(|filter| filter.into_cql2_json())
+            .transpose()
+            .map_err(Error::from)?;
+        let items = Items {
+            limit,
+            bbox,
+            datetime,
+            query,
+            fields,
+            sortby,
+            filter,
+            ..Default::default()
+        };
+
+        let intersects = intersects
+            .map(|intersects| match intersects {
+                StringOrDict::Dict(json) => pythonize::depythonize(&json.bind_borrowed(py))
+                    .map_err(Error::from)
+                    .and_then(|json| Geometry::from_json_object(json).map_err(Error::from)),
+                StringOrDict::String(s) => s.parse().map_err(Error::from),
+            })
+            .transpose()?;
+        let ids = ids.map(|ids| ids.into());
+        let collections = collections.map(|ids| ids.into());
+        let search = Search {
+            items,
+            intersects,
+            ids,
+            collections,
+        };
+        let search = serde_json::to_value(search).map_err(Error::from)?;
+        pgstac! {
+            json self,py,"search",[&search]
+        }
+    }
 }
 
 impl Client {
@@ -283,8 +405,22 @@ impl<'py> IntoPyObject<'py> for Json {
 impl From<Error> for PyErr {
     fn from(value: Error) -> Self {
         match value {
-            Error::RunError(err) => PgstacError::new_err(err.to_string()),
+            Error::Stac(err) => StacError::new_err(err.to_string()),
+            Error::StacApi(err) => StacError::new_err(err.to_string()),
+            Error::Geojson(err) => PyValueError::new_err(format!("geojson: {}", err)),
+            Error::SerdeJson(err) => PyValueError::new_err(err.to_string()),
+            Error::Pythonize(err) => PyValueError::new_err(err.to_string()),
+            Error::Run(err) => PgstacError::new_err(err.to_string()),
             Error::TokioPostgres(err) => PgstacError::new_err(format!("postgres: {err}")),
+        }
+    }
+}
+
+impl From<StringOrList> for Vec<String> {
+    fn from(value: StringOrList) -> Vec<String> {
+        match value {
+            StringOrList::List(list) => list,
+            StringOrList::String(s) => vec![s],
         }
     }
 }
@@ -292,6 +428,7 @@ impl From<Error> for PyErr {
 #[pymodule]
 fn pgstacrs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Client>()?;
+    m.add("StacError", py.get_type::<StacError>())?;
     m.add("PgstacError", py.get_type::<PgstacError>())?;
     Ok(())
 }
