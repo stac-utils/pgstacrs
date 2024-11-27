@@ -2,7 +2,7 @@
 name = "pgstacrs"
 description = "Python async API for pgstac, backed by Rust"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [{ name = "Pete Gadomski", email = "pete.gadomski@gmail.com" }]
 keywords = ["stac", "geospatial", "postgres", "pgstac"]
 classifiers = [
