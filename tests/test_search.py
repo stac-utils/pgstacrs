@@ -6,15 +6,26 @@ from pgstacrs import Client
 
 
 async def test_empty_search(client: Client) -> None:
-    assert await client.search() == {
-        "features": [],
-        "links": [
-            {"href": ".", "rel": "root", "type": "application/json"},
-            {"href": "./search", "rel": "self", "type": "application/json"},
-        ],
-        "numberReturned": 0,
-        "type": "FeatureCollection",
-    }
+    search = await client.search()
+    version = await client.get_version()
+    if version.startswith("0.9"):
+        assert search == {
+            "features": [],
+            "links": [
+                {"href": ".", "rel": "root", "type": "application/json"},
+                {"href": "./search", "rel": "self", "type": "application/json"},
+            ],
+            "numberReturned": 0,
+            "type": "FeatureCollection",
+        }
+    elif version.startswith("0.8"):
+        assert search == {
+            "next": None,
+            "prev": None,
+            "type": "FeatureCollection",
+            "context": {"limit": 10, "returned": 0},
+            "features": [],
+        }
 
 
 async def test_search(
@@ -23,7 +34,7 @@ async def test_search(
     await client.create_collection(collection)
     await client.create_item(item)
     feature_collection = await client.search()
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1
 
 
 async def test_search_fields(
@@ -50,10 +61,10 @@ async def test_search_query(
     await client.create_item(item)
 
     feature_collection = await client.search(query={"query": {"foo": {"eq": "bar"}}})
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1
 
     feature_collection = await client.search(query={"query": {"foo": {"eq": "baz"}}})
-    assert feature_collection["numberReturned"] == 0
+    assert len(feature_collection["features"]) == 0
 
 
 async def test_bbox(
@@ -63,14 +74,14 @@ async def test_bbox(
     await client.create_item(item)
 
     feature_collection = await client.search(bbox=[170, 0, 173, 2])
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1
 
     # Looks like my postgres doesn't like 3d bboxes
     # feature_collection = await client.search(bbox=[170, 0, -1000, 173, 2, 20000])
-    # assert feature_collection["numberReturned"] == 1
+    # assert len(feature_collection["features"]) == 1
 
     feature_collection = await client.search(bbox=[0, 0, 1, 1])
-    assert feature_collection["numberReturned"] == 0
+    assert len(feature_collection["features"]) == 0
 
 
 async def test_sortby(
@@ -120,18 +131,18 @@ async def test_filter(
     await client.create_item(item)
 
     feature_collection = await client.search(filter="foo = 'bar'")
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1
     feature_collection = await client.search(filter="foo != 'bar'")
-    assert feature_collection["numberReturned"] == 0
+    assert len(feature_collection["features"]) == 0
 
     feature_collection = await client.search(
         filter={"op": "=", "args": [{"property": "foo"}, "bar"]}
     )
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1
     feature_collection = await client.search(
         filter={"op": "!=", "args": [{"property": "foo"}, "bar"]}
     )
-    assert feature_collection["numberReturned"] == 0
+    assert len(feature_collection["features"]) == 0
 
 
 async def test_intersects(
@@ -143,17 +154,17 @@ async def test_intersects(
     feature_collection = await client.search(
         intersects={"type": "Point", "coordinates": [0, 0]}
     )
-    assert feature_collection["numberReturned"] == 0
+    assert len(feature_collection["features"]) == 0
 
     feature_collection = await client.search(
         intersects={"type": "Point", "coordinates": [172.92, 1.35]}
     )
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1
 
     feature_collection = await client.search(
         intersects='{"type": "Point", "coordinates": [172.92, 1.35]}'
     )
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1
 
 
 async def test_ids(
@@ -163,13 +174,13 @@ async def test_ids(
     await client.create_item(item)
 
     feature_collection = await client.search(ids="not-an-id")
-    assert feature_collection["numberReturned"] == 0
+    assert len(feature_collection["features"]) == 0
 
     feature_collection = await client.search(ids="20201211_223832_CS2")
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1
 
     feature_collection = await client.search(ids=["20201211_223832_CS2"])
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1
 
 
 async def test_collections(
@@ -179,10 +190,10 @@ async def test_collections(
     await client.create_item(item)
 
     feature_collection = await client.search(collections="not-an-id")
-    assert feature_collection["numberReturned"] == 0
+    assert len(feature_collection["features"]) == 0
 
     feature_collection = await client.search(collections="simple-collection")
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1
 
     feature_collection = await client.search(collections=["simple-collection"])
-    assert feature_collection["numberReturned"] == 1
+    assert len(feature_collection["features"]) == 1

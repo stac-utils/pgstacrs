@@ -1,15 +1,41 @@
+import functools
 import json
 from pathlib import Path
-from typing import Any, AsyncIterator, cast
+from typing import Any, AsyncIterator, Iterator, cast
 
 import pytest
 from pgstacrs import Client
-from pytest import Config, Parser
+from pypgstac.db import PgstacDB
+from pypgstac.migrate import Migrate
+from pytest import Config, FixtureRequest, Parser
 from pytest_postgresql import factories
 from pytest_postgresql.executor import PostgreSQLExecutor
 from pytest_postgresql.janitor import DatabaseJanitor
 
-pgstac = factories.postgresql_proc(load=["tests.migrate:pgstac"])
+
+def migrate(
+    toversion: str, host: str, port: int, user: str, dbname: str, password: str
+) -> None:
+    pgstac_db = PgstacDB(f"postgresql://{user}:{password}@{host}:{port}/{dbname}")
+    Migrate(pgstac_db).run_migration(toversion)
+
+
+pgstac_proc = factories.postgresql_proc()
+
+
+@pytest.fixture(scope="session", params=["0.8.5", "0.9.1"])
+def pgstac(
+    pgstac_proc: PostgreSQLExecutor, request: FixtureRequest
+) -> Iterator[PostgreSQLExecutor]:
+    migrate(
+        request.param,
+        pgstac_proc.host,
+        pgstac_proc.port,
+        pgstac_proc.user,
+        pgstac_proc.template_dbname,
+        pgstac_proc.password,
+    )
+    yield pgstac_proc
 
 
 @pytest.fixture
