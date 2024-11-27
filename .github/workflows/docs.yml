@@ -9,6 +9,10 @@ on:
       - "v*"
   workflow_dispatch:
 
+concurrency:
+  group: docs
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build

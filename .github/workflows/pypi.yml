@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: pypi
+  cancel-in-progress: true
+
 jobs:
   linux:
     runs-on: ${{ matrix.platform.runner }}
