@@ -1,6 +1,7 @@
 use bb8::{Pool, RunError};
 use bb8_postgres::PostgresConnectionManager;
 use geojson::Geometry;
+use pgstac::Pgstac;
 use pyo3::{
     create_exception,
     exceptions::{PyException, PyValueError},
@@ -12,7 +13,7 @@ use stac::Bbox;
 use stac_api::{Fields, Filter, Items, Search, Sortby};
 use std::{future::Future, str::FromStr};
 use thiserror::Error;
-use tokio_postgres::{types::ToSql, Config, NoTls};
+use tokio_postgres::{Config, NoTls};
 
 create_exception!(pgstacrs, PgstacError, PyException);
 create_exception!(pgstacrs, StacError, PyException);
@@ -31,63 +32,6 @@ pub enum StringOrList {
     List(Vec<String>),
 }
 
-macro_rules! pgstac {
-    (string $client:expr,$py:expr,$function:expr) => {
-        let function = $function.to_string();
-        $client.run($py, |pool: PgstacPool| async move {
-            let connection = pool.get().await?;
-            let query = format!("SELECT pgstac.{}()", function);
-            let row = connection.query_one(&query, &[]).await?;
-            let value: String = row.try_get(function.as_str())?;
-            Ok(value)
-        })
-    };
-
-    (json $client:expr,$py:expr,$function:expr,$params:expr) => {
-        let function = $function.to_string();
-        $client.run($py, |pool: PgstacPool| async move {
-            let param_string = (0..$params.len())
-                .map(|i| format!("${}", i + 1))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let query = format!("SELECT pgstac.{}({})", function, param_string);
-            let connection = pool.get().await?;
-            let row = connection.query_one(&query, &$params).await?;
-            let value: Value = row.try_get(function.as_str())?;
-            Ok(Json(value))
-        })
-    };
-
-    (option $client:expr,$py:expr,$function:expr,$params:expr) => {
-        let function = $function.to_string();
-        $client.run($py, |pool: PgstacPool| async move {
-            let param_string = (0..$params.len())
-                .map(|i| format!("${}", i + 1))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let query = format!("SELECT pgstac.{}({})", function, param_string);
-            let connection = pool.get().await?;
-            let row = connection.query_one(&query, &$params).await?;
-            let value: Option<Value> = row.try_get(function.as_str())?;
-            Ok(value.map(Json))
-        })
-    };
-
-    (void $client:expr,$py:expr,$function:expr,$params:expr) => {
-        let function = $function.to_string();
-        $client.run($py, |pool: PgstacPool| async move {
-            let param_string = (0..$params.len())
-                .map(|i| format!("${}", i + 1))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let query = format!("SELECT pgstac.{}({})", function, param_string);
-            let connection = pool.get().await?;
-            let _ = connection.query_one(&query, &$params).await?;
-            Ok(())
-        })
-    };
-}
-
 #[derive(Debug, Error)]
 enum Error {
     #[error(transparent)]
@@ -101,6 +45,9 @@ enum Error {
 
     #[error(transparent)]
     Stac(#[from] stac::Error),
+
+    #[error(transparent)]
+    Pgstac(#[from] pgstac::Error),
 
     #[error(transparent)]
     StacApi(#[from] stac_api::Error),
@@ -152,15 +99,19 @@ impl Client {
     }
 
     fn get_version<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-        pgstac! {
-            string self,py,"get_version"
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            let value = connection.pgstac_version().await?;
+            Ok(value)
+        })
     }
 
     fn get_collection<'a>(&self, py: Python<'a>, id: String) -> PyResult<Bound<'a, PyAny>> {
-        pgstac! {
-            option self,py,"get_collection",[&id]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            let value = connection.collection(&id).await?;
+            Ok(value.map(Json))
+        })
     }
 
     fn create_collection<'a>(
@@ -169,9 +120,11 @@ impl Client {
         collection: Bound<'a, PyDict>,
     ) -> PyResult<Bound<'a, PyAny>> {
         let collection: Value = pythonize::depythonize(&collection)?;
-        pgstac! {
-            void self,py,"create_collection",[&collection]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.add_collection(collection).await?;
+            Ok(())
+        })
     }
 
     fn update_collection<'a>(
@@ -180,9 +133,11 @@ impl Client {
         collection: Bound<'a, PyDict>,
     ) -> PyResult<Bound<'a, PyAny>> {
         let collection: Value = pythonize::depythonize(&collection)?;
-        pgstac! {
-            void self,py,"update_collection",[&collection]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.update_collection(collection).await?;
+            Ok(())
+        })
     }
 
     fn upsert_collection<'a>(
@@ -191,21 +146,27 @@ impl Client {
         collection: Bound<'a, PyDict>,
     ) -> PyResult<Bound<'a, PyAny>> {
         let collection: Value = pythonize::depythonize(&collection)?;
-        pgstac! {
-            void self,py,"upsert_collection",[&collection]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.upsert_collection(collection).await?;
+            Ok(())
+        })
     }
 
     fn delete_collection<'a>(&self, py: Python<'a>, id: String) -> PyResult<Bound<'a, PyAny>> {
-        pgstac! {
-            void self,py,"delete_collection",[&id]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.delete_collection(&id).await?;
+            Ok(())
+        })
     }
 
     fn all_collections<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
-        pgstac! {
-            json self,py,"all_collections",[] as [&(dyn ToSql + Sync); 0]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            let collections = connection.collections().await?;
+            Ok(Json(collections.into()))
+        })
     }
 
     #[pyo3(signature = (id, collection_id=None))]
@@ -215,9 +176,11 @@ impl Client {
         id: String,
         collection_id: Option<String>,
     ) -> PyResult<Bound<'a, PyAny>> {
-        pgstac! {
-            option self,py,"get_item",[&Some(id.as_str()), &collection_id.as_deref()]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            let value = connection.item(&id, collection_id.as_deref()).await?;
+            Ok(value.map(Json))
+        })
     }
 
     fn create_item<'a>(
@@ -226,9 +189,11 @@ impl Client {
         item: Bound<'a, PyDict>,
     ) -> PyResult<Bound<'a, PyAny>> {
         let item: Value = pythonize::depythonize(&item)?;
-        pgstac! {
-            void self,py,"create_item",[&item]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.add_item(item).await?;
+            Ok(())
+        })
     }
 
     fn create_items<'a>(
@@ -237,9 +202,16 @@ impl Client {
         items: Bound<'a, PyList>,
     ) -> PyResult<Bound<'a, PyAny>> {
         let items: Value = pythonize::depythonize(&items)?;
-        pgstac! {
-            void self,py,"create_items",[&items]
-        }
+        let items = if let Value::Array(items) = items {
+            items
+        } else {
+            return Err(PyValueError::new_err("items is not a list"));
+        };
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.add_items(&items).await?;
+            Ok(())
+        })
     }
 
     fn update_item<'a>(
@@ -248,9 +220,11 @@ impl Client {
         item: Bound<'a, PyDict>,
     ) -> PyResult<Bound<'a, PyAny>> {
         let item: Value = pythonize::depythonize(&item)?;
-        pgstac! {
-            void self,py,"update_item",[&item]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.update_item(item).await?;
+            Ok(())
+        })
     }
 
     fn upsert_item<'a>(
@@ -259,9 +233,11 @@ impl Client {
         item: Bound<'a, PyDict>,
     ) -> PyResult<Bound<'a, PyAny>> {
         let item: Value = pythonize::depythonize(&item)?;
-        pgstac! {
-            void self,py,"upsert_item",[&item]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.upsert_item(item).await?;
+            Ok(())
+        })
     }
 
     fn upsert_items<'a>(
@@ -270,9 +246,16 @@ impl Client {
         items: Bound<'a, PyList>,
     ) -> PyResult<Bound<'a, PyAny>> {
         let items: Value = pythonize::depythonize(&items)?;
-        pgstac! {
-            void self,py,"upsert_items",[&items]
-        }
+        let items = if let Value::Array(items) = items {
+            items
+        } else {
+            return Err(PyValueError::new_err("items is not a list"));
+        };
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.upsert_items(&items).await?;
+            Ok(())
+        })
     }
 
     #[pyo3(signature = (id, collection_id=None))]
@@ -282,9 +265,13 @@ impl Client {
         id: String,
         collection_id: Option<String>,
     ) -> PyResult<Bound<'a, PyAny>> {
-        pgstac! {
-            void self,py,"delete_item",[&Some(id.as_str()), &collection_id.as_deref()]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection
+                .delete_item(&id, collection_id.as_deref())
+                .await?;
+            Ok(())
+        })
     }
 
     #[pyo3(signature = (*, collections=None, ids=None, intersects=None, bbox=None, datetime=None, include=None, exclude=None, sortby=None, filter=None, query=None, limit=None))]
@@ -368,10 +355,12 @@ impl Client {
             ids,
             collections,
         };
-        let search = serde_json::to_value(search).map_err(Error::from)?;
-        pgstac! {
-            json self,py,"search",[&search]
-        }
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            let page = connection.search(search).await?;
+            let value = serde_json::to_value(page)?;
+            Ok(Json(value))
+        })
     }
 }
 
@@ -379,7 +368,7 @@ impl Client {
     fn run<'a, F, T>(
         &self,
         py: Python<'a>,
-        f: impl FnOnce(PgstacPool) -> F + Send + 'static,
+        f: impl FnOnce(Pool<PostgresConnectionManager<NoTls>>) -> F + Send + 'static,
     ) -> PyResult<Bound<'a, PyAny>>
     where
         F: Future<Output = Result<T>> + Send,
@@ -409,6 +398,7 @@ impl From<Error> for PyErr {
             Error::StacApi(err) => StacError::new_err(err.to_string()),
             Error::Geojson(err) => PyValueError::new_err(format!("geojson: {}", err)),
             Error::SerdeJson(err) => PyValueError::new_err(err.to_string()),
+            Error::Pgstac(err) => PgstacError::new_err(err.to_string()),
             Error::Pythonize(err) => PyValueError::new_err(err.to_string()),
             Error::Run(err) => PgstacError::new_err(err.to_string()),
             Error::TokioPostgres(err) => PgstacError::new_err(format!("postgres: {err}")),
