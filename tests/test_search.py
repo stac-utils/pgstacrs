@@ -20,8 +20,6 @@ async def test_empty_search(client: Client) -> None:
         }
     elif version.startswith("0.8"):
         assert search == {
-            "next": None,
-            "prev": None,
             "type": "FeatureCollection",
             "context": {"limit": 10, "returned": 0},
             "features": [],
