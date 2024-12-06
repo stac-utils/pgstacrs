@@ -1,6 +1,7 @@
+#![deny(unused_crate_dependencies)]
+
 use bb8::{Pool, RunError};
 use bb8_postgres::PostgresConnectionManager;
-use geojson::Geometry;
 use pgstac::Pgstac;
 use pyo3::{
     create_exception,
@@ -9,8 +10,7 @@ use pyo3::{
     types::{PyDict, PyList, PyType},
 };
 use serde_json::Value;
-use stac::Bbox;
-use stac_api::{Fields, Filter, Items, Search, Sortby};
+use stac_api::python::{StringOrDict, StringOrList};
 use std::{future::Future, str::FromStr};
 use thiserror::Error;
 use tokio_postgres::{Config, NoTls};
@@ -19,18 +19,6 @@ create_exception!(pgstacrs, PgstacError, PyException);
 create_exception!(pgstacrs, StacError, PyException);
 
 type PgstacPool = Pool<PostgresConnectionManager<NoTls>>;
-
-#[derive(FromPyObject)]
-pub enum StringOrDict {
-    String(String),
-    Dict(Py<PyDict>),
-}
-
-#[derive(FromPyObject)]
-pub enum StringOrList {
-    String(String),
-    List(Vec<String>),
-}
 
 #[derive(Debug, Error)]
 enum Error {
@@ -290,71 +278,19 @@ impl Client {
         query: Option<Bound<'a, PyDict>>,
         limit: Option<u64>,
     ) -> PyResult<Bound<'a, PyAny>> {
-        // TODO refactor to use https://github.com/gadomski/stacrs/blob/1528d7e1b7185a86efe9fc7c42b0620093c5e9c6/src/search.rs#L128-L162
-        let mut fields = Fields::default();
-        if let Some(include) = include {
-            fields.include = include.into();
-        }
-        if let Some(exclude) = exclude {
-            fields.exclude = exclude.into();
-        }
-        let fields = if fields.include.is_empty() && fields.exclude.is_empty() {
-            None
-        } else {
-            Some(fields)
-        };
-        let query = query
-            .map(|query| pythonize::depythonize(&query))
-            .transpose()?;
-        let bbox = bbox
-            .map(|bbox| Bbox::try_from(bbox))
-            .transpose()
-            .map_err(Error::from)?;
-        let sortby = sortby.map(|sortby| {
-            Vec::<String>::from(sortby)
-                .into_iter()
-                .map(|s| s.parse::<Sortby>().unwrap()) // the parse is infallible
-                .collect::<Vec<_>>()
-        });
-        let filter = filter
-            .map(|filter| match filter {
-                StringOrDict::Dict(cql_json) => {
-                    pythonize::depythonize(&cql_json.bind_borrowed(py)).map(Filter::Cql2Json)
-                }
-                StringOrDict::String(cql2_text) => Ok(Filter::Cql2Text(cql2_text)),
-            })
-            .transpose()?;
-        let filter = filter
-            .map(|filter| filter.into_cql2_json())
-            .transpose()
-            .map_err(Error::from)?;
-        let items = Items {
-            limit,
-            bbox,
-            datetime,
-            query,
-            fields,
-            sortby,
-            filter,
-            ..Default::default()
-        };
-
-        let intersects = intersects
-            .map(|intersects| match intersects {
-                StringOrDict::Dict(json) => pythonize::depythonize(&json.bind_borrowed(py))
-                    .map_err(Error::from)
-                    .and_then(|json| Geometry::from_json_object(json).map_err(Error::from)),
-                StringOrDict::String(s) => s.parse().map_err(Error::from),
-            })
-            .transpose()?;
-        let ids = ids.map(|ids| ids.into());
-        let collections = collections.map(|ids| ids.into());
-        let search = Search {
-            items,
+        let search = stac_api::python::search(
             intersects,
             ids,
             collections,
-        };
+            limit,
+            bbox,
+            datetime,
+            include,
+            exclude,
+            sortby,
+            filter,
+            query,
+        )?;
         self.run(py, |pool| async move {
             let connection = pool.get().await?;
             let page = connection.search(search).await?;
@@ -402,15 +338,6 @@ impl From<Error> for PyErr {
             Error::Pythonize(err) => PyValueError::new_err(err.to_string()),
             Error::Run(err) => PgstacError::new_err(err.to_string()),
             Error::TokioPostgres(err) => PgstacError::new_err(format!("postgres: {err}")),
-        }
-    }
-}
-
-impl From<StringOrList> for Vec<String> {
-    fn from(value: StringOrList) -> Vec<String> {
-        match value {
-            StringOrList::List(list) => list,
-            StringOrList::String(s) => vec![s],
         }
     }
 }

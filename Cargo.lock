@@ -904,7 +904,7 @@ dependencies = [
 [[package]]
 name = "pgstac"
 version = "0.2.2"
-source = "git+https://github.com/stac-utils/stac-rs#ab577151ebe5c45bf0059d90b6c370bd54818ad7"
+source = "git+https://github.com/stac-utils/stac-rs#87ce7cd4cfea052c841e2a2b329098b797228202"
 dependencies = [
  "serde",
  "serde_json",
@@ -925,12 +925,10 @@ dependencies = [
  "pyo3",
  "pyo3-async-runtimes",
  "pythonize",
- "serde",
  "serde_json",
  "stac",
  "stac-api",
  "thiserror 2.0.4",
- "tokio",
  "tokio-postgres",
 ]
 
@@ -1326,7 +1324,7 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 [[package]]
 name = "stac"
 version = "0.11.0"
-source = "git+https://github.com/stac-utils/stac-rs#ab577151ebe5c45bf0059d90b6c370bd54818ad7"
+source = "git+https://github.com/stac-utils/stac-rs#87ce7cd4cfea052c841e2a2b329098b797228202"
 dependencies = [
  "bytes",
  "chrono",
@@ -1344,11 +1342,13 @@ dependencies = [
 [[package]]
 name = "stac-api"
 version = "0.6.2"
-source = "git+https://github.com/stac-utils/stac-rs#ab577151ebe5c45bf0059d90b6c370bd54818ad7"
+source = "git+https://github.com/stac-utils/stac-rs#87ce7cd4cfea052c841e2a2b329098b797228202"
 dependencies = [
  "chrono",
  "cql2",
  "geojson",
+ "pyo3",
+ "pythonize",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -1363,7 +1363,7 @@ dependencies = [
 [[package]]
 name = "stac-derive"
 version = "0.1.0"
-source = "git+https://github.com/stac-utils/stac-rs#ab577151ebe5c45bf0059d90b6c370bd54818ad7"
+source = "git+https://github.com/stac-utils/stac-rs#87ce7cd4cfea052c841e2a2b329098b797228202"
 dependencies = [
  "quote",
  "syn",
@@ -1372,7 +1372,7 @@ dependencies = [
 [[package]]
 name = "stac-types"
 version = "0.1.0"
-source = "git+https://github.com/stac-utils/stac-rs#ab577151ebe5c45bf0059d90b6c370bd54818ad7"
+source = "git+https://github.com/stac-utils/stac-rs#87ce7cd4cfea052c841e2a2b329098b797228202"
 dependencies = [
  "mime",
  "serde",
