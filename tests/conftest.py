@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, AsyncIterator, Iterator, cast
+from typing import Any, Iterator, cast
 
 import pytest
 from pgstacrs import Client
@@ -38,7 +38,7 @@ def pgstac(
 
 
 @pytest.fixture
-async def client(pgstac: PostgreSQLExecutor) -> AsyncIterator[Client]:
+def database_janitor(pgstac: PostgreSQLExecutor) -> Iterator[DatabaseJanitor]:
     with DatabaseJanitor(
         user=pgstac.user,
         host=pgstac.host,
@@ -48,9 +48,14 @@ async def client(pgstac: PostgreSQLExecutor) -> AsyncIterator[Client]:
         dbname="pypgstac_test",
         template_dbname=pgstac.template_dbname,
     ) as database_janitor:
-        yield await Client.open(
-            f"user={database_janitor.user} host={database_janitor.host} port={database_janitor.port} dbname={database_janitor.dbname} password={database_janitor.password}"
-        )
+        yield database_janitor
+
+
+@pytest.fixture
+async def client(database_janitor: DatabaseJanitor) -> Client:
+    return await Client.open(
+        f"user={database_janitor.user} host={database_janitor.host} port={database_janitor.port} dbname={database_janitor.dbname} password={database_janitor.password}"
+    )
 
 
 @pytest.fixture

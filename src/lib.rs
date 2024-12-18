@@ -2,7 +2,7 @@
 
 use bb8::{Pool, RunError};
 use bb8_postgres::PostgresConnectionManager;
-use pgstac::Pgstac;
+use pgstac::{make_unverified_tls, MakeRustlsConnect, Pgstac};
 use pyo3::{
     create_exception,
     exceptions::{PyException, PyValueError},
@@ -18,7 +18,7 @@ use tokio_postgres::{Config, NoTls};
 create_exception!(pgstacrs, PgstacError, PyException);
 create_exception!(pgstacrs, StacError, PyException);
 
-type PgstacPool = Pool<PostgresConnectionManager<NoTls>>;
+type PgstacPool = Pool<PostgresConnectionManager<MakeRustlsConnect>>;
 
 #[derive(Debug, Error)]
 enum Error {
@@ -68,7 +68,7 @@ impl Client {
         let config: Config = params
             .parse()
             .map_err(|err: <Config as FromStr>::Err| PyValueError::new_err(err.to_string()))?;
-        let manager = PostgresConnectionManager::new(config.clone(), NoTls);
+        let manager = PostgresConnectionManager::new(config.clone(), make_unverified_tls());
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             {
                 // Quick connection to get better errors, bb8 will just time out
@@ -308,7 +308,7 @@ impl Client {
     fn run<'a, F, T>(
         &self,
         py: Python<'a>,
-        f: impl FnOnce(Pool<PostgresConnectionManager<NoTls>>) -> F + Send + 'static,
+        f: impl FnOnce(Pool<PostgresConnectionManager<MakeRustlsConnect>>) -> F + Send + 'static,
     ) -> PyResult<Bound<'a, PyAny>>
     where
         F: Future<Output = Result<T>> + Send,

@@ -12,7 +12,9 @@ crate-type = ["cdylib"]
 bb8 = "0.8.6"
 bb8-postgres = "0.8.1"
 geojson = "0.24.1"
-pgstac = { version = "0.2.2", git = "https://github.com/stac-utils/stac-rs" }
+pgstac = { version = "0.2.2", git = "https://github.com/stac-utils/stac-rs", features = [
+    "tls",
+] }
 pyo3 = "0.23.2"
 pyo3-async-runtimes = { version = "0.23.0", features = [
     "tokio",
