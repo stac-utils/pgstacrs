@@ -70,6 +70,10 @@ impl Client {
             .map_err(|err: <Config as FromStr>::Err| PyValueError::new_err(err.to_string()))?;
         let manager = PostgresConnectionManager::new(config.clone(), NoTls);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            {
+                // Quick connection to get better errors, bb8 will just time out
+                let _ = config.connect(NoTls).await.map_err(Error::from)?;
+            }
             let pool = Pool::builder().build(manager).await.map_err(Error::from)?; // TODO allow configuration
             {
                 let connection = pool.get().await.map_err(Error::from)?;
@@ -344,6 +348,8 @@ impl From<Error> for PyErr {
 
 #[pymodule]
 fn pgstacrs(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    pyo3_log::init();
+
     m.add_class::<Client>()?;
     m.add("StacError", py.get_type::<StacError>())?;
     m.add("PgstacError", py.get_type::<PgstacError>())?;
