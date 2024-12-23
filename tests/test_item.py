@@ -100,10 +100,10 @@ async def test_update_collection_extents(
     collection["extent"]["spatial"]["bbox"] = [[-180, -90, 180, 90]]
     await client.create_collection(collection)
     await client.create_item(item)
-    assert (await client.get_collection("simple-collection"))["extent"]["spatial"][
-        "bbox"
-    ] == [[-180, -90, 180, 90]]
+    collection = await client.get_collection("simple-collection")
+    assert collection
+    assert collection["extent"]["spatial"]["bbox"] == [[-180, -90, 180, 90]]
     await client.update_collection_extents()
-    assert (await client.get_collection("simple-collection"))["extent"]["spatial"][
-        "bbox"
-    ] != [[-180, -90, 180, 90]]
+    collection = await client.get_collection("simple-collection")
+    assert collection
+    assert collection["extent"]["spatial"]["bbox"] != [[-180, -90, 180, 90]]
