@@ -132,6 +132,14 @@ impl Client {
         })
     }
 
+    fn update_collection_extents<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.update_collection_extents().await?;
+            Ok(())
+        })
+    }
+
     fn upsert_collection<'a>(
         &self,
         py: Python<'a>,

@@ -92,3 +92,18 @@ async def test_delete_item(
     await client.create_item(item)
     await client.delete_item("20201211_223832_CS2", "simple-collection")
     assert await client.get_item("20201211_223832_CS2") is None
+
+
+async def test_update_collection_extents(
+    client: Client, collection: dict[str, Any], item: dict[str, Any]
+) -> None:
+    collection["extent"]["spatial"]["bbox"] = [[-180, -90, 180, 90]]
+    await client.create_collection(collection)
+    await client.create_item(item)
+    db_collection = await client.get_collection("simple-collection")
+    assert db_collection
+    assert db_collection["extent"]["spatial"]["bbox"] == [[-180, -90, 180, 90]]
+    await client.update_collection_extents()
+    db_collection = await client.get_collection("simple-collection")
+    assert db_collection
+    assert db_collection["extent"]["spatial"]["bbox"] != [[-180, -90, 180, 90]]

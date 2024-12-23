@@ -103,6 +103,9 @@ class Client:
             PgstacError: If the collection does not exist.
         """
 
+    async def update_collection_extents(self) -> None:
+        """Updates all collection extents."""
+
     async def upsert_collection(self, collection: dict[str, Any]) -> None:
         """Upserts a collection.
 
