@@ -2,7 +2,9 @@
 
 use bb8::{Pool, RunError};
 use bb8_postgres::PostgresConnectionManager;
-use pgstac::{make_unverified_tls, MakeRustlsConnect, Pgstac};
+use native_tls::TlsConnector;
+use pgstac::Pgstac;
+use postgres_native_tls::MakeTlsConnector;
 use pyo3::{
     create_exception,
     exceptions::{PyException, PyValueError},
@@ -18,12 +20,15 @@ use tokio_postgres::{Config, NoTls};
 create_exception!(pgstacrs, PgstacError, PyException);
 create_exception!(pgstacrs, StacError, PyException);
 
-type PgstacPool = Pool<PostgresConnectionManager<MakeRustlsConnect>>;
+type PgstacPool = Pool<PostgresConnectionManager<MakeTlsConnector>>;
 
 #[derive(Debug, Error)]
 enum Error {
     #[error(transparent)]
     Geojson(#[from] geojson::Error),
+
+    #[error(transparent)]
+    NativeTls(#[from] native_tls::Error),
 
     #[error(transparent)]
     Run(#[from] RunError<tokio_postgres::Error>),
@@ -68,7 +73,9 @@ impl Client {
         let config: Config = params
             .parse()
             .map_err(|err: <Config as FromStr>::Err| PyValueError::new_err(err.to_string()))?;
-        let manager = PostgresConnectionManager::new(config.clone(), make_unverified_tls());
+        let connector = TlsConnector::builder().build().map_err(Error::from)?;
+        let manager =
+            PostgresConnectionManager::new(config.clone(), MakeTlsConnector::new(connector));
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             {
                 // Quick connection to get better errors, bb8 will just time out
@@ -316,7 +323,7 @@ impl Client {
     fn run<'a, F, T>(
         &self,
         py: Python<'a>,
-        f: impl FnOnce(Pool<PostgresConnectionManager<MakeRustlsConnect>>) -> F + Send + 'static,
+        f: impl FnOnce(Pool<PostgresConnectionManager<MakeTlsConnector>>) -> F + Send + 'static,
     ) -> PyResult<Bound<'a, PyAny>>
     where
         F: Future<Output = Result<T>> + Send,
@@ -348,6 +355,7 @@ impl From<Error> for PyErr {
             Error::SerdeJson(err) => PyValueError::new_err(err.to_string()),
             Error::Pgstac(err) => PgstacError::new_err(err.to_string()),
             Error::Pythonize(err) => PyValueError::new_err(err.to_string()),
+            Error::NativeTls(err) => PyException::new_err(err.to_string()),
             Error::Run(err) => PgstacError::new_err(err.to_string()),
             Error::TokioPostgres(err) => PgstacError::new_err(format!("postgres: {err}")),
         }
