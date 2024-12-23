@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `update_collection_extents` ([#17](https://github.com/stac-utils/pgstacrs/pull/17))
+
 ## [0.1.0] - 2024-11-27
 
 Initial release.
