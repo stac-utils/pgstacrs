@@ -1,4 +1,5 @@
 import copy
+import urllib.parse
 from typing import Any
 
 import pytest
@@ -219,3 +220,30 @@ async def test_collections(
 
     feature_collection = await client.search(collections=["simple-collection"])
     assert len(feature_collection["features"]) == 1
+
+
+async def test_pagination(
+    client: Client, collection: dict[str, Any], item: dict[str, Any]
+) -> None:
+    version = await client.get_version()
+
+    await client.create_collection(collection)
+    item["id"] = "first-item"
+    await client.create_item(item)
+    second_item = copy.deepcopy(item)
+    second_item["id"] = "second-item"
+    await client.create_item(second_item)
+
+    feature_collection = await client.search(limit=1, sortby="id")
+
+    if version.startswith("0.9"):
+        next_link = next(
+            (link for link in feature_collection["links"] if link["rel"] == "next")
+        )
+        url = urllib.parse.urlparse(next_link["href"])
+        token = url.query.split("=")[1]
+    elif version.startswith("0.8"):
+        token = "next:" + feature_collection["next"]
+
+    feature_collection = await client.search(limit=1, sortby="id", token=token)
+    assert feature_collection["features"][0]["id"] == "second-item"
