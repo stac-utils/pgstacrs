@@ -293,7 +293,7 @@ impl Client {
         })
     }
 
-    #[pyo3(signature = (*, collections=None, ids=None, intersects=None, bbox=None, datetime=None, include=None, exclude=None, sortby=None, filter=None, query=None, limit=None))]
+    #[pyo3(signature = (*, collections=None, ids=None, intersects=None, bbox=None, datetime=None, include=None, exclude=None, sortby=None, filter=None, query=None, limit=None, **kwargs))]
     fn search<'a>(
         &self,
         py: Python<'a>,
@@ -308,6 +308,7 @@ impl Client {
         filter: Option<StringOrDict>,
         query: Option<Bound<'a, PyDict>>,
         limit: Option<u64>,
+        kwargs: Option<Bound<'a, PyDict>>,
     ) -> PyResult<Bound<'a, PyAny>> {
         let search = stac_api::python::search(
             intersects,
@@ -321,6 +322,7 @@ impl Client {
             sortby,
             filter,
             query,
+            kwargs,
         )?;
         self.run(py, |pool| async move {
             let connection = pool.get().await?;
