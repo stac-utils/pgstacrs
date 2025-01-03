@@ -26,6 +26,30 @@ async def test_empty_search(client: Client) -> None:
         }
 
 
+async def test_base_url(client: Client) -> None:
+    await client.set_setting("base_url", "http://pgstacrs.test")
+    search = await client.search()
+    version = await client.get_version()
+    if version.startswith("0.9"):
+        assert search == {
+            "features": [],
+            "links": [
+                {
+                    "href": "http://pgstacrs.test/",
+                    "rel": "root",
+                    "type": "application/json",
+                },
+                {
+                    "href": "http://pgstacrs.test/search",
+                    "rel": "self",
+                    "type": "application/json",
+                },
+            ],
+            "numberReturned": 0,
+            "type": "FeatureCollection",
+        }
+
+
 async def test_search(
     client: Client, collection: dict[str, Any], item: dict[str, Any]
 ) -> None:

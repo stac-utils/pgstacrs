@@ -104,6 +104,19 @@ impl Client {
         })
     }
 
+    fn set_setting<'a>(
+        &self,
+        py: Python<'a>,
+        key: String,
+        value: String,
+    ) -> PyResult<Bound<'a, PyAny>> {
+        self.run(py, |pool| async move {
+            let connection = pool.get().await?;
+            connection.set_pgstac_setting(&key, &value).await?;
+            Ok(())
+        })
+    }
+
     fn get_collection<'a>(&self, py: Python<'a>, id: String) -> PyResult<Bound<'a, PyAny>> {
         self.run(py, |pool| async move {
             let connection = pool.get().await?;
