@@ -34,6 +34,7 @@ class Client:
         sortby: str | list[str] | None = None,
         filter: str | dict[str, Any] | None = None,
         query: dict[str, Any] | None = None,
+        **kwargs: str,
     ) -> dict[str, Any]:
         """
         Searches the database with STAC API item search.
@@ -59,6 +60,7 @@ class Client:
             query: Additional filtering based on properties.
                 It is recommended to use filter instead, if possible.
             limit: The page size returned from the server.
+            kwargs: Any additional arguments to pass down into the search, e.g a pagination token
         """
 
     async def print_config(self) -> None:
