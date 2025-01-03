@@ -60,10 +60,19 @@ class Client:
                 It is recommended to use filter instead, if possible.
             limit: The page size returned from the server.
         """
+
     async def print_config(self) -> None:
         """Prints the postgresql configuration.
 
         Redacts the password
+        """
+
+    async def set_setting(self, key: str, value: str) -> None:
+        """Sets a pgstac setting.
+
+        Args:
+            key: The setting name, e.g. `base_url`
+            value: The setting value, e.g. `http://pgstacrs.test`
         """
 
     async def get_version(self) -> str:
