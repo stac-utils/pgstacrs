@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2024-11-27
+
 ### Added
 
 - `update_collection_extents` ([#17](https://github.com/stac-utils/pgstacrs/pull/17))
@@ -13,7 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 Initial release.
 
-[Unreleased]: https://github.com/gadomski/stacrs/compare/v0.1.0...main
+[Unreleased]: https://github.com/gadomski/stacrs/compare/v0.1.1...main
+[0.1.1]: https://github.com/gadomski/stacrs/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/stac-utils/stac-rs/releases/tag/v0.1.0
 
 <!-- markdownlint-disable-file MD024 -->
